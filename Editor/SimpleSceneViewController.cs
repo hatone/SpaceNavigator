@@ -70,7 +70,10 @@ namespace SpaceNavigatorDriver
             }
 
             // Apply deadzone - exit if device is idle
-            if (IsApproximatelyZero(translation, 0.0001f) && IsApproximatelyZero(rotation, 0.0001f))
+            bool translationIdle = IsApproximatelyZero(translation, 0.0001f);
+            bool rotationIdle = IsApproximatelyZero(rotation, 0.00005f);  // 回転のデッドゾーンをより小さく
+            
+            if (translationIdle && rotationIdle)
             {
                 if (_debugMode)
                 {
@@ -85,7 +88,7 @@ namespace SpaceNavigatorDriver
 
             // Apply sensitivity scaling
             translation *= 0.5f; // Adjust translation sensitivity
-            rotation *= 2.0f;    // Adjust rotation sensitivity
+            rotation *= 5.0f;    // Adjust rotation sensitivity (増加)
 
             if (_debugMode)
             {
@@ -100,38 +103,57 @@ namespace SpaceNavigatorDriver
         {
             if (_debugMode)
             {
-                Debug.Log("SimpleSceneViewController: Applying camera movement");
+                Debug.Log($"SimpleSceneViewController: Applying camera movement - Translation: {translation}, Rotation: {rotation}");
             }
 
-            // Create a temporary transform to represent the camera
-            var tempTransform = new GameObject("TempCamera").transform;
-            tempTransform.position = sceneView.camera.transform.position;
-            tempTransform.rotation = sceneView.camera.transform.rotation;
-            tempTransform.hideFlags = HideFlags.HideAndDontSave;
+            // Get current camera transform
+            Transform cameraTransform = sceneView.camera.transform;
+            Vector3 currentPosition = cameraTransform.position;
+            Quaternion currentRotation = cameraTransform.rotation;
 
             // Apply translation in local space (camera's coordinate system)
-            tempTransform.Translate(translation, Space.Self);
+            Vector3 newPosition = currentPosition;
+            newPosition += cameraTransform.right * translation.x;      // Left/Right
+            newPosition += cameraTransform.up * translation.y;        // Up/Down
+            newPosition += cameraTransform.forward * translation.z;   // Forward/Backward
 
-            // Apply rotation using quaternion math
-            if (!sceneView.orthographic)
+            // Apply rotation - use a more direct approach
+            Quaternion newRotation = currentRotation;
+            if (!sceneView.orthographic && rotation.magnitude > 0.0001f)
             {
-                // Convert rotation vector to quaternion and apply
-                Quaternion rotationQuaternion = Quaternion.Euler(rotation.x, rotation.y, rotation.z);
-                tempTransform.rotation = tempTransform.rotation * rotationQuaternion;
+                // Apply pitch (X-axis rotation) around camera's right vector
+                if (Mathf.Abs(rotation.x) > 0.0001f)
+                {
+                    newRotation = Quaternion.AngleAxis(rotation.x, cameraTransform.right) * newRotation;
+                }
+                
+                // Apply yaw (Y-axis rotation) around world up vector
+                if (Mathf.Abs(rotation.y) > 0.0001f)
+                {
+                    newRotation = Quaternion.AngleAxis(rotation.y, Vector3.up) * newRotation;
+                }
+                
+                // Apply roll (Z-axis rotation) around camera's forward vector
+                if (Mathf.Abs(rotation.z) > 0.0001f)
+                {
+                    newRotation = Quaternion.AngleAxis(rotation.z, cameraTransform.forward) * newRotation;
+                }
+
+                if (_debugMode)
+                {
+                    Debug.Log($"SimpleSceneViewController: Rotation applied - Pitch: {rotation.x}, Yaw: {rotation.y}, Roll: {rotation.z}");
+                }
             }
 
             // Update SceneView camera
-            sceneView.pivot = tempTransform.position;
-            sceneView.rotation = tempTransform.rotation;
+            sceneView.pivot = newPosition;
+            sceneView.rotation = newRotation;
             
             // Handle orthographic size for zoom
             if (sceneView.orthographic)
             {
                 sceneView.size = Mathf.Max(0.1f, sceneView.size - translation.z);
             }
-
-            // Clean up temporary object
-            Object.DestroyImmediate(tempTransform.gameObject);
 
             // Refresh the SceneView to show changes
             sceneView.Repaint();
