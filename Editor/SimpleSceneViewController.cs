@@ -18,8 +18,8 @@ namespace SpaceNavigatorDriver
         
         static SimpleSceneViewController()
         {
-            // EditorApplication.update += Update;  // Disabled for ImprovedSpaceNavigatorController
-            Debug.Log("SimpleSceneViewController: Disabled (ImprovedSpaceNavigatorController is active)");
+            EditorApplication.update += Update;  // Re-enabled with improved implementation
+            Debug.Log("SimpleSceneViewController: Initialized with improved SpaceMouse behavior");
         }
 
         private static void Update()
@@ -105,9 +105,9 @@ namespace SpaceNavigatorDriver
             translation *= deltaTime * _deltaTimeFactor;
             rotation *= deltaTime * _deltaTimeFactor;
 
-            // Apply sensitivity scaling
-            translation *= 0.5f; // Adjust translation sensitivity
-            rotation *= 5.0f;    // Adjust rotation sensitivity (増加)
+            // Apply sensitivity scaling for better feel
+            translation *= 1.5f; // Improved translation sensitivity
+            rotation *= 1.2f;    // Improved rotation sensitivity for natural orbit
 
             if (_debugMode)
             {
@@ -122,56 +122,86 @@ namespace SpaceNavigatorDriver
         {
             if (_debugMode)
             {
-                Debug.Log($"SimpleSceneViewController: Applying camera movement - Translation: {translation}, Rotation: {rotation}");
+                Debug.Log($"SimpleSceneViewController: Applying improved camera movement - Translation: {translation}, Rotation: {rotation}");
             }
 
-            // Get current camera transform
-            Transform cameraTransform = sceneView.camera.transform;
-            Vector3 currentPosition = cameraTransform.position;
-            Quaternion currentRotation = cameraTransform.rotation;
+            // Get current camera state
+            Vector3 cameraPosition = sceneView.camera.transform.position;
+            Vector3 pivotPosition = sceneView.pivot;
+            Quaternion cameraRotation = sceneView.rotation;
 
-            // Apply translation in local space (camera's coordinate system)
-            Vector3 newPosition = currentPosition;
-            newPosition += cameraTransform.right * translation.x;      // Left/Right
-            newPosition += cameraTransform.up * translation.y;        // Up/Down
-            newPosition += cameraTransform.forward * translation.z;   // Forward/Backward
+            // Calculate camera-to-pivot distance for proper scaling
+            float distanceToPivot = Vector3.Distance(cameraPosition, pivotPosition);
+            float scaledTranslationFactor = Mathf.Max(0.1f, distanceToPivot * 0.1f);
 
-            // Apply rotation - use a more direct approach
-            Quaternion newRotation = currentRotation;
-            if (!sceneView.orthographic && rotation.magnitude > 0.0001f)
-            {
-                // Apply pitch (X-axis rotation) around camera's right vector
-                if (Mathf.Abs(rotation.x) > 0.0001f)
-                {
-                    newRotation = Quaternion.AngleAxis(rotation.x, cameraTransform.right) * newRotation;
-                }
-                
-                // Apply yaw (Y-axis rotation) around world up vector
-                if (Mathf.Abs(rotation.y) > 0.0001f)
-                {
-                    newRotation = Quaternion.AngleAxis(rotation.y, Vector3.up) * newRotation;
-                }
-                
-                // Apply roll (Z-axis rotation) around camera's forward vector
-                if (Mathf.Abs(rotation.z) > 0.0001f)
-                {
-                    newRotation = Quaternion.AngleAxis(rotation.z, cameraTransform.forward) * newRotation;
-                }
-
-                if (_debugMode)
-                {
-                    Debug.Log($"SimpleSceneViewController: Rotation applied - Pitch: {rotation.x}, Yaw: {rotation.y}, Roll: {rotation.z}");
-                }
-            }
-
-            // Update SceneView camera
-            sceneView.pivot = newPosition;
-            sceneView.rotation = newRotation;
+            // === TRANSLATION (Panning) ===
+            // Apply translation in world space, scaled by distance to pivot
+            Vector3 worldTranslation = Vector3.zero;
             
-            // Handle orthographic size for zoom
+            // Right/Left movement (X-axis)
+            worldTranslation += cameraRotation * Vector3.right * translation.x * scaledTranslationFactor;
+            
+            // Up/Down movement (Y-axis) 
+            worldTranslation += cameraRotation * Vector3.up * translation.y * scaledTranslationFactor;
+            
+            // Update pivot position for panning
+            Vector3 newPivotPosition = pivotPosition + worldTranslation;
+
+            // === ZOOM (Dolly) ===
+            // Handle forward/backward as camera dolly (moving camera closer/farther from pivot)
+            float zoomInput = translation.z * 3.0f;  // Zoom sensitivity
+            
+            // Calculate zoom direction (from pivot to camera)
+            Vector3 zoomDirection = (cameraPosition - pivotPosition).normalized;
+            
+            // Apply zoom while maintaining minimum distance
+            float currentDistance = Vector3.Distance(cameraPosition, pivotPosition);
+            float newDistance = Mathf.Max(0.1f, currentDistance - zoomInput);
+            
+            // Calculate new camera position for zoom
+            Vector3 newCameraPosition = newPivotPosition + zoomDirection * newDistance;
+
+            // === ROTATION (Orbit) ===
+            // Apply rotation as orbit around pivot point
+            Quaternion deltaRotation = Quaternion.identity;
+            
+            if (!sceneView.orthographic && rotation.magnitude > 0.001f)
+            {
+                // Create rotation around pivot
+                // Pitch (X-axis) - rotate around camera's right vector projected onto world plane
+                Vector3 rightVector = Vector3.Cross(Vector3.up, (newCameraPosition - newPivotPosition).normalized);
+                if (rightVector.magnitude > 0.001f)
+                {
+                    rightVector = rightVector.normalized;
+                    deltaRotation = Quaternion.AngleAxis(-rotation.x * 57.2958f, rightVector) * deltaRotation;
+                }
+                
+                // Yaw (Y-axis) - rotate around world up vector
+                deltaRotation = Quaternion.AngleAxis(rotation.y * 57.2958f, Vector3.up) * deltaRotation;
+                
+                // Roll (Z-axis) - rotate around camera's forward vector (minimal for natural feel)
+                Vector3 forwardVector = (newCameraPosition - newPivotPosition).normalized;
+                deltaRotation = Quaternion.AngleAxis(rotation.z * 57.2958f * 0.5f, forwardVector) * deltaRotation;
+            }
+
+            // Apply rotation to camera position around pivot
+            Vector3 rotatedOffset = deltaRotation * (newCameraPosition - newPivotPosition);
+            Vector3 finalCameraPosition = newPivotPosition + rotatedOffset;
+            
+            // Update camera rotation to look at pivot
+            Vector3 lookDirection = (newPivotPosition - finalCameraPosition).normalized;
+            Quaternion finalCameraRotation = Quaternion.LookRotation(lookDirection, Vector3.up);
+            
+            // Apply the final transformations to SceneView
+            sceneView.pivot = newPivotPosition;
+            sceneView.rotation = finalCameraRotation;
+            
+            // Handle orthographic mode specially
             if (sceneView.orthographic)
             {
-                sceneView.size = Mathf.Max(0.1f, sceneView.size - translation.z);
+                // In orthographic mode, adjust size instead of position for zoom
+                float sizeChange = translation.z * 3.0f * 0.1f;
+                sceneView.size = Mathf.Max(0.01f, sceneView.size - sizeChange);
             }
 
             // Refresh the SceneView to show changes
@@ -197,6 +227,13 @@ namespace SpaceNavigatorDriver
             {
                 Debug.LogWarning("SimpleSceneViewController: No SpaceNavigator device connected for drift calibration");
             }
+        }
+        
+        [MenuItem("Window/SpaceNavigator/Toggle Debug Mode")]
+        public static void ToggleDebugMode()
+        {
+            _debugMode = !_debugMode;
+            Debug.Log($"SimpleSceneViewController: Debug mode {(_debugMode ? "enabled" : "disabled")}");
         }
     }
 }
