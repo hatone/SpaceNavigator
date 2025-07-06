@@ -132,89 +132,85 @@ namespace SpaceNavigatorDriver
         {
             if (_debugMode)
             {
-                Debug.Log($"SimpleSceneViewController: Applying improved camera movement - Translation: {translation}, Rotation: {rotation}");
+                Debug.Log($"SimpleSceneViewController: Applying 6-axis camera movement - Translation: {translation}, Rotation: {rotation}");
             }
 
-            // Get current camera state
-            Vector3 cameraPosition = sceneView.camera.transform.position;
-            Vector3 pivotPosition = sceneView.pivot;
-            Quaternion cameraRotation = sceneView.rotation;
+            // Get current camera transform
+            Transform cameraTransform = sceneView.camera.transform;
+            Vector3 currentPosition = cameraTransform.position;
+            Quaternion currentRotation = sceneView.rotation;
 
-            // Calculate camera-to-pivot distance for proper scaling
-            float distanceToPivot = Vector3.Distance(cameraPosition, pivotPosition);
-            float scaledTranslationFactor = Mathf.Max(0.1f, distanceToPivot * 0.1f);
+            // Calculate movement speed based on camera distance from objects
+            float movementSpeed = Mathf.Max(0.1f, Vector3.Distance(currentPosition, sceneView.pivot) * 0.1f);
 
-            // === TRANSLATION (Panning) ===
-            // Apply translation in world space, scaled by distance to pivot
-            Vector3 worldTranslation = Vector3.zero;
+            // === 平行移動（3軸）===
+            Vector3 newPosition = currentPosition;
             
-            // Right/Left movement (X-axis)
-            worldTranslation += cameraRotation * Vector3.right * translation.x * scaledTranslationFactor;
+            // 左右（Pan）- カメラのローカル右方向に移動
+            newPosition += currentRotation * Vector3.right * translation.x * movementSpeed;
             
-            // Up/Down movement (Y-axis) 
-            worldTranslation += cameraRotation * Vector3.up * translation.y * scaledTranslationFactor;
+            // 上下（Elevate）- カメラのローカル上方向に移動
+            newPosition += currentRotation * Vector3.up * translation.y * movementSpeed;
             
-            // Update pivot position for panning
-            Vector3 newPivotPosition = pivotPosition + worldTranslation;
+            // 前後（Zoom/Dolly）- カメラのローカル前方向に移動
+            newPosition += currentRotation * Vector3.forward * translation.z * movementSpeed;
 
-            // === ZOOM (Dolly) ===
-            // Handle forward/backward as camera dolly (moving camera closer/farther from pivot)
-            float zoomInput = translation.z * 3.0f;  // Zoom sensitivity
-            
-            // Calculate zoom direction (from pivot to camera)
-            Vector3 zoomDirection = (cameraPosition - pivotPosition).normalized;
-            
-            // Apply zoom while maintaining minimum distance
-            float currentDistance = Vector3.Distance(cameraPosition, pivotPosition);
-            float newDistance = Mathf.Max(0.1f, currentDistance - zoomInput);
-            
-            // Calculate new camera position for zoom
-            Vector3 newCameraPosition = newPivotPosition + zoomDirection * newDistance;
-
-            // === ROTATION (Orbit) ===
-            // Apply rotation as orbit around pivot point
-            Quaternion deltaRotation = Quaternion.identity;
+            // === 回転（3軸）===
+            Quaternion newRotation = currentRotation;
             
             if (!sceneView.orthographic && rotation.magnitude > 0.001f)
             {
-                // Create rotation around pivot
-                // Pitch (X-axis) - rotate around camera's right vector projected onto world plane
-                Vector3 rightVector = Vector3.Cross(Vector3.up, (newCameraPosition - newPivotPosition).normalized);
-                if (rightVector.magnitude > 0.001f)
+                // 回転感度の調整
+                float rotationSensitivity = 57.2958f; // ラジアンから度への変換
+                
+                // ピッチ（上下に回転）- カメラのローカル右軸周りで回転
+                if (Mathf.Abs(rotation.x) > 0.0001f)
                 {
-                    rightVector = rightVector.normalized;
-                    deltaRotation = Quaternion.AngleAxis(-rotation.x * 57.2958f, rightVector) * deltaRotation;
+                    Quaternion pitchRotation = Quaternion.AngleAxis(-rotation.x * rotationSensitivity, currentRotation * Vector3.right);
+                    newRotation = pitchRotation * newRotation;
                 }
                 
-                // Yaw (Y-axis) - rotate around world up vector
-                deltaRotation = Quaternion.AngleAxis(rotation.y * 57.2958f, Vector3.up) * deltaRotation;
+                // ヨー（左右に回転）- 世界のY軸周りで回転（水平方向を旋回）
+                if (Mathf.Abs(rotation.y) > 0.0001f)
+                {
+                    Quaternion yawRotation = Quaternion.AngleAxis(rotation.y * rotationSensitivity, Vector3.up);
+                    newRotation = yawRotation * newRotation;
+                }
                 
-                // Roll (Z-axis) - rotate around camera's forward vector (minimal for natural feel)
-                Vector3 forwardVector = (newCameraPosition - newPivotPosition).normalized;
-                deltaRotation = Quaternion.AngleAxis(rotation.z * 57.2958f * 0.5f, forwardVector) * deltaRotation;
+                // ロール（軸回転）- カメラのローカル前方軸周りで回転
+                if (Mathf.Abs(rotation.z) > 0.0001f)
+                {
+                    Quaternion rollRotation = Quaternion.AngleAxis(rotation.z * rotationSensitivity, currentRotation * Vector3.forward);
+                    newRotation = rollRotation * newRotation;
+                }
+
+                if (_debugMode)
+                {
+                    Debug.Log($"SimpleSceneViewController: Applied rotations - Pitch: {-rotation.x * rotationSensitivity:F2}°, Yaw: {rotation.y * rotationSensitivity:F2}°, Roll: {rotation.z * rotationSensitivity:F2}°");
+                }
             }
 
-            // Apply rotation to camera position around pivot
-            Vector3 rotatedOffset = deltaRotation * (newCameraPosition - newPivotPosition);
-            Vector3 finalCameraPosition = newPivotPosition + rotatedOffset;
-            
-            // Update camera rotation to look at pivot
-            Vector3 lookDirection = (newPivotPosition - finalCameraPosition).normalized;
-            Quaternion finalCameraRotation = Quaternion.LookRotation(lookDirection, Vector3.up);
-            
-            // Apply the final transformations to SceneView
+            // 新しいピボット位置を計算（カメラの移動に合わせて）
+            Vector3 newPivotPosition = newPosition + (newRotation * Vector3.forward) * Vector3.Distance(currentPosition, sceneView.pivot);
+
+            // SceneViewに適用
             sceneView.pivot = newPivotPosition;
-            sceneView.rotation = finalCameraRotation;
+            sceneView.rotation = newRotation;
             
-            // Handle orthographic mode specially
+            // Orthographicモードでの特別な処理
             if (sceneView.orthographic)
             {
-                // In orthographic mode, adjust size instead of position for zoom
-                float sizeChange = translation.z * 3.0f * 0.1f;
+                // Orthographicモードでは、前後移動をサイズ変更として扱う
+                float sizeChange = translation.z * movementSpeed * 0.1f;
                 sceneView.size = Mathf.Max(0.01f, sceneView.size - sizeChange);
             }
 
-            // Refresh the SceneView to show changes
+            if (_debugMode)
+            {
+                Debug.Log($"SimpleSceneViewController: Camera moved to position: {newPosition}, rotation: {newRotation.eulerAngles}");
+            }
+
+            // SceneViewを更新
             sceneView.Repaint();
         }
 
