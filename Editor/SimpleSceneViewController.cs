@@ -9,23 +9,51 @@ namespace SpaceNavigatorDriver
     {
         private static double _lastUpdateTime;
         private static float _deltaTimeFactor = 400f;
+        private static bool _debugMode = true; // デバッグモードを有効化
         
         static SimpleSceneViewController()
         {
-            EditorApplication.update += Update;
+            // EditorApplication.update += Update;  // 一時的に無効化
+            Debug.Log("SimpleSceneViewController: Initialized (but disabled)");
         }
 
         private static void Update()
         {
-            // Exit if no SpaceNavigator device is connected
-            if (SpaceNavigatorHID.current == null) return;
+            // Debug: SpaceNavigator device connection check
+            if (SpaceNavigatorHID.current == null)
+            {
+                if (_debugMode)
+                {
+                    Debug.Log("SimpleSceneViewController: SpaceNavigatorHID.current is null - device not connected");
+                }
+                return;
+            }
+            
+            if (_debugMode)
+            {
+                Debug.Log($"SimpleSceneViewController: SpaceNavigator device connected: {SpaceNavigatorHID.current.displayName}");
+            }
             
             // Exit if Unity doesn't have focus (optional)
-            if (!EditorApplication.isFocused) return;
+            if (!EditorApplication.isFocused) 
+            {
+                if (_debugMode)
+                {
+                    Debug.Log("SimpleSceneViewController: Unity doesn't have focus");
+                }
+                return;
+            }
             
             // Get the active SceneView
             SceneView sceneView = SceneView.lastActiveSceneView;
-            if (sceneView == null) return;
+            if (sceneView == null)
+            {
+                if (_debugMode)
+                {
+                    Debug.Log("SimpleSceneViewController: No active SceneView");
+                }
+                return;
+            }
 
             // Calculate delta time for frame-rate independent movement
             double currentTime = EditorApplication.timeSinceStartup;
@@ -36,9 +64,20 @@ namespace SpaceNavigatorDriver
             Vector3 translation = SpaceNavigatorHID.current.Translation.ReadValue();
             Vector3 rotation = SpaceNavigatorHID.current.Rotation.ReadValue();
 
+            if (_debugMode)
+            {
+                Debug.Log($"SimpleSceneViewController: Raw input - Translation: {translation}, Rotation: {rotation}");
+            }
+
             // Apply deadzone - exit if device is idle
             if (IsApproximatelyZero(translation, 0.001f) && IsApproximatelyZero(rotation, 0.001f))
+            {
+                if (_debugMode)
+                {
+                    Debug.Log("SimpleSceneViewController: Device is idle (within deadzone)");
+                }
                 return;
+            }
 
             // Make movement frame-rate independent
             translation *= deltaTime * _deltaTimeFactor;
@@ -48,12 +87,22 @@ namespace SpaceNavigatorDriver
             translation *= 0.5f; // Adjust translation sensitivity
             rotation *= 2.0f;    // Adjust rotation sensitivity
 
+            if (_debugMode)
+            {
+                Debug.Log($"SimpleSceneViewController: Processed input - Translation: {translation}, Rotation: {rotation}");
+            }
+
             // Apply camera transformations
             ApplyCameraMovement(sceneView, translation, rotation);
         }
 
         private static void ApplyCameraMovement(SceneView sceneView, Vector3 translation, Vector3 rotation)
         {
+            if (_debugMode)
+            {
+                Debug.Log("SimpleSceneViewController: Applying camera movement");
+            }
+
             // Create a temporary transform to represent the camera
             var tempTransform = new GameObject("TempCamera").transform;
             tempTransform.position = sceneView.camera.transform.position;

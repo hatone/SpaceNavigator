@@ -41,13 +41,13 @@ namespace SpaceNavigatorDriver
         static ViewportController() 
         {
 			// Set up callbacks.
-			// EditorApplication.update += Update;  // 一時的に無効化
-			// EditorApplication.pauseStateChanged += PauseStateChanged;  // 一時的に無効化
+			EditorApplication.update += Update;
+			EditorApplication.pauseStateChanged += PauseStateChanged;
 
             // Initialize.
-            // Settings.Read();  // 一時的に無効化
-            // InitCameraRig();  // 一時的に無効化
-            // StoreSelectionTransforms();  // 一時的に無効化
+            Settings.Read();
+            InitCameraRig();
+            StoreSelectionTransforms();
         }
 
         #region - Callbacks -
