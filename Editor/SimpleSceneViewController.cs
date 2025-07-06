@@ -11,6 +11,11 @@ namespace SpaceNavigatorDriver
         private static float _deltaTimeFactor = 400f;
         private static bool _debugMode = true; // デバッグモードを有効化
         
+        // ドリフト補正用
+        private static Vector3 _translationDrift = Vector3.zero;
+        private static Vector3 _rotationDrift = Vector3.zero;
+        private static bool _driftCalibrated = false;
+        
         static SimpleSceneViewController()
         {
             EditorApplication.update += Update;  // 有効化
@@ -64,14 +69,28 @@ namespace SpaceNavigatorDriver
             Vector3 translation = SpaceNavigatorHID.current.Translation.ReadValue();
             Vector3 rotation = SpaceNavigatorHID.current.Rotation.ReadValue();
 
+            // 初回実行時にドリフトを記録
+            if (!_driftCalibrated)
+            {
+                _translationDrift = translation;
+                _rotationDrift = rotation;
+                _driftCalibrated = true;
+                Debug.Log($"SimpleSceneViewController: Drift calibrated - Translation: {_translationDrift}, Rotation: {_rotationDrift}");
+            }
+
+            // ドリフト補正を適用
+            translation -= _translationDrift;
+            rotation -= _rotationDrift;
+
             if (_debugMode)
             {
-                Debug.Log($"SimpleSceneViewController: Raw input - Translation: {translation}, Rotation: {rotation}");
+                Debug.Log($"SimpleSceneViewController: Raw input - Translation: {SpaceNavigatorHID.current.Translation.ReadValue()}, Rotation: {SpaceNavigatorHID.current.Rotation.ReadValue()}");
+                Debug.Log($"SimpleSceneViewController: Drift corrected - Translation: {translation}, Rotation: {rotation}");
             }
 
             // Apply deadzone - exit if device is idle
-            bool translationIdle = IsApproximatelyZero(translation, 0.0001f);
-            bool rotationIdle = IsApproximatelyZero(rotation, 0.00005f);  // 回転のデッドゾーンをより小さく
+            bool translationIdle = IsApproximatelyZero(translation, 0.01f);    // 移動のデッドゾーンを上げる
+            bool rotationIdle = IsApproximatelyZero(rotation, 0.01f);          // 回転のデッドゾーンを上げる
             
             if (translationIdle && rotationIdle)
             {
@@ -162,6 +181,22 @@ namespace SpaceNavigatorDriver
         private static bool IsApproximatelyZero(Vector3 vector, float epsilon)
         {
             return vector.magnitude < epsilon;
+        }
+
+        [MenuItem("Window/SpaceNavigator/Recalibrate Drift")]
+        public static void RecalibrateDrift()
+        {
+            if (SpaceNavigatorHID.current != null)
+            {
+                _translationDrift = SpaceNavigatorHID.current.Translation.ReadValue();
+                _rotationDrift = SpaceNavigatorHID.current.Rotation.ReadValue();
+                _driftCalibrated = true;
+                Debug.Log($"SimpleSceneViewController: Drift recalibrated - Translation: {_translationDrift}, Rotation: {_rotationDrift}");
+            }
+            else
+            {
+                Debug.LogWarning("SimpleSceneViewController: No SpaceNavigator device connected for drift calibration");
+            }
         }
     }
 }
