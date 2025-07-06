@@ -18,8 +18,8 @@ namespace SpaceNavigatorDriver
         
         static SimpleSceneViewController()
         {
-            EditorApplication.update += Update;  // 有効化
-            Debug.Log("SimpleSceneViewController: Initialized and enabled");
+            // EditorApplication.update += Update;  // Disabled for ImprovedSpaceNavigatorController
+            Debug.Log("SimpleSceneViewController: Disabled (ImprovedSpaceNavigatorController is active)");
         }
 
         private static void Update()
