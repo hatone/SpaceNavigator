@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace SpaceNavigatorDriver
 {
@@ -15,6 +16,10 @@ namespace SpaceNavigatorDriver
         private static Vector3 _translationDrift = Vector3.zero;
         private static Vector3 _rotationDrift = Vector3.zero;
         private static bool _driftCalibrated = false;
+        
+        // カーソルロック用（macOS対応）
+        private static Vector2 _lastCursorPosition;
+        private static bool _wasIdle = true;
         
         static SimpleSceneViewController()
         {
@@ -94,6 +99,7 @@ namespace SpaceNavigatorDriver
             
             if (translationIdle && rotationIdle)
             {
+                _wasIdle = true;
                 if (_debugMode)
                 {
                     Debug.Log("SimpleSceneViewController: Device is idle (within deadzone)");
@@ -116,6 +122,10 @@ namespace SpaceNavigatorDriver
 
             // Apply camera transformations
             ApplyCameraMovement(sceneView, translation, rotation);
+            
+            // Lock cursor on macOS to prevent mouse movement
+            CursorLock();
+            _wasIdle = false;
         }
 
         private static void ApplyCameraMovement(SceneView sceneView, Vector3 translation, Vector3 rotation)
@@ -234,6 +244,40 @@ namespace SpaceNavigatorDriver
         {
             _debugMode = !_debugMode;
             Debug.Log($"SimpleSceneViewController: Debug mode {(_debugMode ? "enabled" : "disabled")}");
+        }
+        
+        /// <summary>
+        /// On MacOS 3dconnexion pitch & roll input always moves the mouse pointer.
+        /// This method locks the pointer in place while input is being received.
+        /// </summary>
+        private static void CursorLock()
+        {
+            if (Application.platform != RuntimePlatform.OSXEditor) return;
+            
+            if (_wasIdle)
+            {
+                // デバイスがアイドル状態から動き始めた時、現在のカーソル位置を記録
+                if (Mouse.current != null)
+                {
+                    _lastCursorPosition = Mouse.current.position.ReadValue();
+                    if (_debugMode)
+                    {
+                        Debug.Log($"SimpleSceneViewController: Cursor position saved: {_lastCursorPosition}");
+                    }
+                }
+            }
+            else
+            {
+                // デバイスが動いている間、カーソルを元の位置に戻す
+                if (EditorApplication.isFocused && Mouse.current != null)
+                {
+                    Mouse.current.WarpCursorPosition(_lastCursorPosition);
+                    if (_debugMode)
+                    {
+                        Debug.Log($"SimpleSceneViewController: Cursor position restored to: {_lastCursorPosition}");
+                    }
+                }
+            }
         }
     }
 }
