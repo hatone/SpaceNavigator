@@ -41,13 +41,13 @@ namespace SpaceNavigatorDriver
         static ViewportController() 
         {
 			// Set up callbacks.
-			EditorApplication.update += Update;
-			EditorApplication.pauseStateChanged += PauseStateChanged;
+			// EditorApplication.update += Update;  // SimpleSceneViewControllerテスト用に無効化
+			// EditorApplication.pauseStateChanged += PauseStateChanged;  // SimpleSceneViewControllerテスト用に無効化
 
             // Initialize.
             Settings.Read();
-            InitCameraRig();
-            StoreSelectionTransforms();
+            // InitCameraRig();  // SimpleSceneViewControllerテスト用に無効化
+            // StoreSelectionTransforms();  // SimpleSceneViewControllerテスト用に無効化
         }
 
         #region - Callbacks -

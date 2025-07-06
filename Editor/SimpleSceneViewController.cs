@@ -13,8 +13,8 @@ namespace SpaceNavigatorDriver
         
         static SimpleSceneViewController()
         {
-            // EditorApplication.update += Update;  // 一時的に無効化
-            Debug.Log("SimpleSceneViewController: Initialized (but disabled)");
+            EditorApplication.update += Update;  // 有効化
+            Debug.Log("SimpleSceneViewController: Initialized and enabled");
         }
 
         private static void Update()
@@ -70,7 +70,7 @@ namespace SpaceNavigatorDriver
             }
 
             // Apply deadzone - exit if device is idle
-            if (IsApproximatelyZero(translation, 0.001f) && IsApproximatelyZero(rotation, 0.001f))
+            if (IsApproximatelyZero(translation, 0.0001f) && IsApproximatelyZero(rotation, 0.0001f))
             {
                 if (_debugMode)
                 {
