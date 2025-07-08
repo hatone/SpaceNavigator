@@ -1,38 +1,50 @@
 {
-  "name": "com.pathightree.spacenavigator-driver",
-  "version": "2.0.0",
-  "displayName": "SpaceNavigator Driver",
-  "description": "Driver for 3DConnexion devices\nThis driver lets you fly around your scene and allows you to move items around.\nIt can also be used at runtime via scripting.",
-  "unity": "2019.1",
+  "name": "com.spacemouse.unity-plugin",
+  "version": "3.0.0",
+  "displayName": "SpaceMouse Unity Plugin",
+  "description": "Professional SpaceMouse plugin for Unity with feature parity to 3Dconnexion's official Windows plugin.\n\nFeatures:\n• 6DoF navigation modes: Object, Camera, TargetCamera, Fly, Helicopter, Walk, Drone\n• HorizonLock & RotationLock toggles\n• MoveObjects mode with Local/Parent/World/Camera coordinates\n• Unity Preferences panel with speed settings and axis inversion\n• SceneView overlay with mode indicators and quick controls\n• Radial menu system with JSON configuration\n• Button mapping profiles with ScriptableObject assets\n• Macro system for command sequences\n• Full Unity 2022+ LTS support with UIToolkit",
+  "unity": "2022.3",
   "dependencies": {
-    "com.unity.inputsystem": "1.0.2"
+    "com.unity.inputsystem": "1.4.4",
+    "com.unity.ui": "1.0.0"
   },
- "repository": {
+  "repository": {
     "type": "git",
     "url": "https://github.com/PatHightree/SpaceNavigator.git",
-    "revision": "220141cef5bc34da382552a32447b53ecda0ed6a"
+    "revision": "enhanced-spacemouse-plugin"
   },
   "keywords": [
     "3DConnexion",
     "SpaceNavigator",
-    "SpaceMouse"
+    "SpaceMouse",
+    "6DoF",
+    "Navigation",
+    "Editor",
+    "macOS",
+    "Unity"
   ],
-  "license": "MIT license",
+  "license": "MIT",
   "author": {
-    "name": "Patrick Hogenboom",
+    "name": "SpaceMouse Unity Plugin Team",
     "email": "spacenavigator.driver@pm.me",
     "url": "https://github.com/PatHightree/SpaceNavigator"
   },
-  "samples":[
-  {
-    "displayName": "Runtime samples",
-    "description": "A collection of samples to illustrate how to work with the driver at runtime via scripting.",
-    "path": "Samples~/Runtime samples"
-  },
-  {
-    "displayName": "Input Device Helper",
-    "description": "Tool which writes all HID device descriptors to disk.\nPlease supply this data when reporting an issue with an unsupported 3dconnexion device.",
-    "path": "Samples~/Input Device Helper"
-  }],
+  "samples": [
+    {
+      "displayName": "Runtime samples",
+      "description": "A collection of samples to illustrate how to work with the driver at runtime via scripting.",
+      "path": "Samples~/Runtime samples"
+    },
+    {
+      "displayName": "Input Device Helper",
+      "description": "Tool which writes all HID device descriptors to disk.\nPlease supply this data when reporting an issue with an unsupported 3dconnexion device.",
+      "path": "Samples~/Input Device Helper"
+    },
+    {
+      "displayName": "Button Mapping Examples",
+      "description": "Example button mapping profiles and macro configurations for SpaceMouse devices.",
+      "path": "Samples~/Button Mapping Examples"
+    }
+  ],
   "type": "tool"
 }

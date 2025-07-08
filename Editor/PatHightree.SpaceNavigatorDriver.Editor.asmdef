@@ -1,11 +1,14 @@
 {
-    "name": "PatHightree.SpaceNavigatorDriver.Editor",
-    "rootNamespace": "",
+    "name": "SpaceMouse.Editor",
+    "displayName": "SpaceMouse Editor",
+    "rootNamespace": "SpaceNavigatorDriver",
     "references": [
         "GUID:75469ad4d38634e559750d17036d5f7c",
         "GUID:64b9905ca179d5742bee6c224b2b446a"
     ],
-    "includePlatforms": [],
+    "includePlatforms": [
+        "Editor"
+    ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,
