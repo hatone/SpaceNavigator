@@ -25,7 +25,7 @@ namespace SpaceNavigatorDriver
     {
         private static double _lastUpdateTime;
         private static float _deltaTimeFactor = 400f;
-        private static bool _debugMode = true; // デバッグモードを有効化
+        private static bool _debugMode = false; // デバッグモードはデフォルト無効
         
         // ドリフト補正用
         private static Vector3 _translationDrift = Vector3.zero;
@@ -61,44 +61,48 @@ namespace SpaceNavigatorDriver
         static SimpleSceneViewController()
         {
             EditorApplication.update += Update;  // Re-enabled with improved implementation
-            Debug.Log("SimpleSceneViewController: Initialized with improved SpaceMouse behavior");
+            
+            // Load debug mode setting
+            LoadDebugMode();
+            
+            if (_debugMode)
+            {
+                Debug.Log("SimpleSceneViewController: Initialized with improved SpaceMouse behavior");
+            }
+            
+            // Initialize button mapping system
+            ButtonMappingSystem.LoadActiveProfile();
+            
+            // Clear dictionaries on domain reload to prevent memory leaks
+            _unsnappedRotations.Clear();
+            _unsnappedTranslations.Clear();
+            _previousButtonStates.Clear();
         }
 
         private static void Update()
         {
-            // Debug: SpaceNavigator device connection check
+            // Early exit if no device connected (performance optimization)
             if (SpaceNavigatorHID.current == null)
             {
-                if (_debugMode)
+                // Only log occasionally to avoid spam
+                if (_debugMode && Time.realtimeSinceStartup - _lastUpdateTime > 5.0)
                 {
                     Debug.Log("SimpleSceneViewController: SpaceNavigatorHID.current is null - device not connected");
+                    _lastUpdateTime = Time.realtimeSinceStartup;
                 }
                 return;
             }
             
-            if (_debugMode)
-            {
-                Debug.Log($"SimpleSceneViewController: SpaceNavigator device connected: {SpaceNavigatorHID.current.displayName}");
-            }
-            
-            // Exit if Unity doesn't have focus (optional)
+            // Exit if Unity doesn't have focus (performance optimization)
             if (!EditorApplication.isFocused) 
             {
-                if (_debugMode)
-                {
-                    Debug.Log("SimpleSceneViewController: Unity doesn't have focus");
-                }
                 return;
             }
             
-            // Get the active SceneView
+            // Get the active SceneView (cached for performance)
             SceneView sceneView = SceneView.lastActiveSceneView;
             if (sceneView == null)
             {
-                if (_debugMode)
-                {
-                    Debug.Log("SimpleSceneViewController: No active SceneView");
-                }
                 return;
             }
 
@@ -124,7 +128,8 @@ namespace SpaceNavigatorDriver
             translation -= _translationDrift;
             rotation -= _rotationDrift;
 
-            if (_debugMode)
+            // Debug output (rate limited for performance)
+            if (_debugMode && currentTime - _lastUpdateTime > 1.0) // Log once per second max
             {
                 Debug.Log($"SimpleSceneViewController: Raw input - Translation: {SpaceNavigatorHID.current.Translation.ReadValue()}, Rotation: {SpaceNavigatorHID.current.Rotation.ReadValue()}");
                 Debug.Log($"SimpleSceneViewController: Drift corrected - Translation: {translation}, Rotation: {rotation}");
@@ -152,11 +157,15 @@ namespace SpaceNavigatorDriver
             translation *= 1.5f; // Improved translation sensitivity
             rotation *= 1.2f;    // Improved rotation sensitivity for natural orbit
 
-            if (_debugMode)
+            // Additional debug info (rate limited)
+            if (_debugMode && currentTime - _lastUpdateTime > 1.0)
             {
                 Debug.Log($"SimpleSceneViewController: Processed input - Translation: {translation}, Rotation: {rotation}");
             }
 
+            // Handle button events
+            HandleButtonEvents();
+            
             // Apply movement based on current mode
             switch (_currentMode)
             {
@@ -836,7 +845,7 @@ namespace SpaceNavigatorDriver
             return vector.magnitude < epsilon;
         }
 
-        [MenuItem("Window/SpaceNavigator/Recalibrate Drift")]
+        [MenuItem("Window/SpaceNavigator/Device/Recalibrate Drift")]
         public static void RecalibrateDrift()
         {
             if (SpaceNavigatorHID.current != null)
@@ -1126,6 +1135,143 @@ namespace SpaceNavigatorDriver
                         Debug.Log($"SimpleSceneViewController: Cursor position restored to: {_lastCursorPosition}");
                     }
                 }
+            }
+        }
+        
+        // Button event handling
+        private static Dictionary<int, bool> _previousButtonStates = new Dictionary<int, bool>();
+        
+        private static void HandleButtonEvents()
+        {
+            if (SpaceNavigatorHID.current == null) return;
+            
+            // Check Button 1
+            CheckButton(1, SpaceNavigatorHID.current.Button1.isPressed);
+            
+            // Check Button 2
+            CheckButton(2, SpaceNavigatorHID.current.Button2.isPressed);
+        }
+        
+        private static void CheckButton(int buttonIndex, bool isPressed)
+        {
+            bool previousState = _previousButtonStates.GetValueOrDefault(buttonIndex, false);
+            
+            if (isPressed && !previousState)
+            {
+                // Button press
+                ButtonMappingSystem.HandleButtonPress(buttonIndex);
+                if (_debugMode)
+                {
+                    Debug.Log($"SpaceMouse Button {buttonIndex} pressed");
+                }
+            }
+            else if (isPressed && previousState)
+            {
+                // Button hold
+                ButtonMappingSystem.HandleButtonHold(buttonIndex);
+            }
+            else if (!isPressed && previousState)
+            {
+                // Button release
+                ButtonMappingSystem.HandleButtonRelease(buttonIndex);
+                if (_debugMode)
+                {
+                    Debug.Log($"SpaceMouse Button {buttonIndex} released");
+                }
+            }
+            
+            _previousButtonStates[buttonIndex] = isPressed;
+        }
+        
+        // Debug mode control
+        [MenuItem("Window/SpaceNavigator/Toggle Debug Mode")]
+        public static void ToggleDebugMode()
+        {
+            _debugMode = !_debugMode;
+            EditorPrefs.SetBool("SpaceNavigator_DebugMode", _debugMode);
+            Debug.Log($"SpaceNavigator debug mode: {(_debugMode ? "Enabled" : "Disabled")}");
+        }
+        
+        private static void LoadDebugMode()
+        {
+            _debugMode = EditorPrefs.GetBool("SpaceNavigator_DebugMode", false);
+        }
+        
+        // Navigation mode menu items with keyboard shortcuts
+        [MenuItem("Window/SpaceNavigator/Navigation Modes/Object Mode")]
+        public static void SetObjectMode() { _currentMode = NavigationMode.Object; ShowModeChangeNotification(); }
+        
+        [MenuItem("Window/SpaceNavigator/Navigation Modes/Camera Mode")]
+        public static void SetCameraMode() { _currentMode = NavigationMode.Camera; ShowModeChangeNotification(); }
+        
+        [MenuItem("Window/SpaceNavigator/Navigation Modes/Fly Mode")]
+        public static void SetFlyMode() { _currentMode = NavigationMode.Fly; ShowModeChangeNotification(); }
+        
+        [MenuItem("Window/SpaceNavigator/Navigation Modes/Orbit Mode")]
+        public static void SetOrbitMode() { _currentMode = NavigationMode.Orbit; ShowModeChangeNotification(); }
+        
+        [MenuItem("Window/SpaceNavigator/Navigation Modes/Telekinesis Mode")]
+        public static void SetTelekinesisMode() { _currentMode = NavigationMode.Telekinesis; ShowModeChangeNotification(); }
+        
+        // Keyboard shortcuts for quick access
+        [MenuItem("Window/SpaceNavigator/Quick Actions/Next Mode %#M")]
+        public static void CycleNavigationMode()
+        {
+            NavigationMode[] modes = {
+                NavigationMode.Object,
+                NavigationMode.Camera,
+                NavigationMode.Fly,
+                NavigationMode.Orbit,
+                NavigationMode.Telekinesis
+            };
+            
+            var currentIndex = System.Array.IndexOf(modes, _currentMode);
+            var nextIndex = (currentIndex + 1) % modes.Length;
+            _currentMode = modes[nextIndex];
+            
+            ShowModeChangeNotification();
+        }
+        
+        [MenuItem("Window/SpaceNavigator/Quick Actions/Toggle Horizon Lock %#H")]
+        public static void QuickToggleHorizonLock()
+        {
+            ToggleHorizonLock();
+            ShowLockStatusNotification();
+        }
+        
+        [MenuItem("Window/SpaceNavigator/Quick Actions/Toggle Rotation Lock %#R")]
+        public static void QuickToggleRotationLock()
+        {
+            ToggleRotationLock();
+            ShowLockStatusNotification();
+        }
+        
+        [MenuItem("Window/SpaceNavigator/Quick Actions/Recalibrate %#C")]
+        public static void QuickRecalibrate()
+        {
+            RecalibrateDrift();
+        }
+        
+        private static void ShowModeChangeNotification()
+        {
+            var sceneView = SceneView.lastActiveSceneView;
+            if (sceneView != null)
+            {
+                sceneView.ShowNotification(new GUIContent($"Mode: {_currentMode}"));
+            }
+        }
+        
+        private static void ShowLockStatusNotification()
+        {
+            var sceneView = SceneView.lastActiveSceneView;
+            if (sceneView != null)
+            {
+                string lockStatus = "";
+                if (_horizonLock) lockStatus += "Horizon ";
+                if (_rotationLock) lockStatus += "Rotation ";
+                
+                var message = lockStatus.Length > 0 ? $"Locks: {lockStatus.Trim()}" : "All locks disabled";
+                sceneView.ShowNotification(new GUIContent(message));
             }
         }
     }

@@ -12,6 +12,7 @@ namespace SpaceNavigatorDriver
         private VisualElement _root;
         private Label _modeLabel;
         private Label _lockStatusLabel;
+        private Label _connectionStatusLabel;
         private Button _fitViewButton;
         private Button _frameSelectedButton;
         private Button _modeToggleButton;
@@ -43,6 +44,12 @@ namespace SpaceNavigatorDriver
             _modeLabel.style.color = Color.white;
             _root.Add(_modeLabel);
 
+            // Connection status
+            _connectionStatusLabel = new Label();
+            _connectionStatusLabel.style.fontSize = 9;
+            _connectionStatusLabel.style.marginBottom = 2;
+            _root.Add(_connectionStatusLabel);
+
             // Lock status
             _lockStatusLabel = new Label();
             _lockStatusLabel.style.fontSize = 10;
@@ -59,7 +66,7 @@ namespace SpaceNavigatorDriver
             _fitViewButton = new Button(() => {
                 if (SceneView.lastActiveSceneView != null)
                 {
-                    SceneView.lastActiveSceneView.FrameSelected();
+                    SceneView.lastActiveSceneView.LookAt(SceneView.lastActiveSceneView.pivot, SceneView.lastActiveSceneView.rotation, SceneView.lastActiveSceneView.size * 0.9f);
                 }
             });
             _fitViewButton.text = "Fit";
@@ -107,10 +114,23 @@ namespace SpaceNavigatorDriver
         {
             if (_root == null) return;
 
-            // Update mode display
+            // Update connection status
+            if (_connectionStatusLabel != null)
+            {
+                var isConnected = SpaceNavigatorHID.current != null;
+                var statusIcon = isConnected ? "✓" : "⚠";
+                var statusText = isConnected ? "Connected" : "Disconnected";
+                var statusColor = isConnected ? Color.green : Color.red;
+                
+                _connectionStatusLabel.text = $"{statusIcon} {statusText}";
+                _connectionStatusLabel.style.color = statusColor;
+            }
+
+            // Update mode display with color coding
             if (_modeLabel != null)
             {
                 _modeLabel.text = $"Mode: {SimpleSceneViewController.CurrentMode}";
+                _modeLabel.style.color = GetModeColor(SimpleSceneViewController.CurrentMode);
             }
 
             // Update lock status
@@ -169,6 +189,28 @@ namespace SpaceNavigatorDriver
             {
                 // This would call the internal method if accessible
                 // For now, we'll just switch the mode
+            }
+        }
+
+        private Color GetModeColor(NavigationMode mode)
+        {
+            switch (mode)
+            {
+                case NavigationMode.Object:
+                case NavigationMode.Orbit:
+                    return Color.cyan;
+                case NavigationMode.Camera:
+                case NavigationMode.Fly:
+                    return Color.green;
+                case NavigationMode.Telekinesis:
+                case NavigationMode.GrabMove:
+                    return Color.magenta;
+                case NavigationMode.Walk:
+                case NavigationMode.Helicopter:
+                case NavigationMode.Drone:
+                    return Color.yellow;
+                default:
+                    return Color.white;
             }
         }
 

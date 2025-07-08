@@ -84,12 +84,28 @@ namespace SpaceNavigatorDriver
                 catch (Exception e)
                 {
                     Debug.LogError($"Failed to load RadialMenu config: {e.Message}");
-                    CreateDefaultConfiguration();
+                    try
+                    {
+                        CreateDefaultConfiguration();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"Failed to create default RadialMenu configuration: {ex.Message}");
+                        _menuData = new RadialMenuData { menus = new List<RadialMenuConfig>() };
+                    }
                 }
             }
             else
             {
-                CreateDefaultConfiguration();
+                try
+                {
+                    CreateDefaultConfiguration();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Failed to create default RadialMenu configuration: {ex.Message}");
+                    _menuData = new RadialMenuData { menus = new List<RadialMenuConfig>() };
+                }
             }
         }
 

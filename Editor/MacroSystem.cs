@@ -372,6 +372,9 @@ namespace SpaceNavigatorDriver
         static EditorCoroutine()
         {
             EditorApplication.update += UpdateCoroutines;
+            
+            // Clear coroutines on domain reload to prevent memory leaks
+            _coroutines.Clear();
         }
 
         private EditorCoroutine(IEnumerator routine)

@@ -150,6 +150,13 @@ namespace SpaceNavigatorDriver
             var reportPtr = (byte*) stateEventPtr->state;
             var reportId = *reportPtr;
             var reportStatePtr = (reportPtr + 1); // or wherever the actual report starts.
+            
+            // Validate report ID to prevent buffer overruns
+            if (reportId < 1 || reportId > 3)
+            {
+                DebugLog($"SpaceNavigatorHID : Invalid report ID {reportId}, ignoring");
+                return;
+            }
 
             // We have two options here. We can either use InputState.Change with a DeltaStateEvent that we set up
             // from the event we have received (and simply update either report1 or report2 only) or we can merge

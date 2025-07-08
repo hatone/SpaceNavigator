@@ -91,6 +91,9 @@ namespace SpaceNavigatorDriver {
 #if UNITY_EDITOR
 			EditorGUI.BeginChangeCheck();
 
+			// Quick help section
+			DrawQuickHelp();
+
 			_scrollPos = GUILayout.BeginScrollView(_scrollPos);
 			GUILayout.BeginVertical();
 
@@ -417,6 +420,55 @@ namespace SpaceNavigatorDriver {
 				Write();
 #endif
 			return triggerToolbarRefresh;
+		}
+
+		private static bool _showHelp = false;
+
+		private static void DrawQuickHelp()
+		{
+			// Show help by default for first-time users
+			if (!_showHelp && EditorPrefs.GetBool("SpaceNavigator_ShowHelp", false))
+			{
+				_showHelp = true;
+				EditorPrefs.DeleteKey("SpaceNavigator_ShowHelp"); // Only show once
+			}
+			
+			_showHelp = EditorGUILayout.Foldout(_showHelp, "Quick Help", true);
+			if (_showHelp)
+			{
+				EditorGUILayout.HelpBox(
+					"Device Status: " + (SpaceNavigatorHID.current != null ? "✓ Connected" : "⚠ Disconnected") + "\n\n" +
+					"Quick Start:\n" +
+					"• Use Ctrl+Shift+M to cycle navigation modes\n" +
+					"• Use Ctrl+Shift+H to toggle horizon lock\n" +
+					"• Use Ctrl+Shift+R to toggle rotation lock\n" +
+					"• Use Ctrl+Shift+C to recalibrate drift\n\n" +
+					"Navigation Modes:\n" +
+					"• Object/Orbit (Cyan): Camera orbits around selection\n" +
+					"• Camera/Fly (Green): Free camera movement\n" +
+					"• Telekinesis (Magenta): Move selected objects\n" +
+					"• Walk/Helicopter/Drone (Yellow): Specialized movement",
+					MessageType.Info
+				);
+
+				if (SpaceNavigatorHID.current == null)
+				{
+					EditorGUILayout.HelpBox(
+						"SpaceMouse not detected. Check:\n" +
+						"• Device is connected via USB\n" +
+						"• 3DxWare driver is installed\n" +
+						"• Device is not used by another app",
+						MessageType.Warning
+					);
+
+					if (GUILayout.Button("Open 3Dconnexion Support"))
+					{
+						Application.OpenURL("https://help.3dconnexion.com/");
+					}
+				}
+
+				EditorGUILayout.Space();
+			}
 		}
 
 		private static Vector2 _scrollPos;
